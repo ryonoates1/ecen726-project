@@ -13,14 +13,20 @@ Existing files in `src/` and `main.ipynb` are unchanged.
 
 ## Results (test set evaluated once)
 
-| Model | Hidden | Val | Test |
-|---|---|---|---|
-| BP, sigmoid | 64-64 | 97.13 % | 97.52 % |
-| BP, ReLU | 64-64 | 97.49 % | 97.78 % |
-| BP, ReLU | 500-500 | 98.22 % | 98.40 % |
-| FF | 500-500 | 97.90 % | 97.91 % |
+| Model | Hidden | Params | Optimizer | Val | Test |
+|---|---|---|---|---|---|
+| BP, sigmoid | 64-64 | 55,050 | SGD 0.1, bs 32 | 97.13 % | 97.52 % |
+| BP, ReLU | 64-64 | 55,050 | SGD 0.1, bs 32 | 97.49 % | 97.78 % |
+| FF | 64-64 | 54,400 | Adam 0.003, bs 100 | 96.09 % | — |
+| BP, ReLU | 500-500 | 648,010 | SGD 0.1, bs 32 | 98.22 % | 98.40 % |
+| BP, ReLU | 500-500 | 648,010 | Adam 0.003, bs 100 | 98.05 % | — |
+| FF | 500-500 | 643,000 | Adam 0.003, bs 100 | 97.90 % | 97.91 % |
 
-FF: θ = 5, Adam lr 0.003, batch 100, hard negatives, 60 epochs. Hyperparameters chosen on the validation set.
+Epochs: 60, except the two 64-64 BP runs (50). FF: θ = 5, hard negatives. Hyperparameters chosen on the validation set.
+
+- BP has 5,010 more parameters: its 10-unit output layer. FF reads the class through the label pixels inside the 784 inputs; hidden layers are identical.
+- With the same optimizer (Adam 0.003, bs 100), BP still leads FF (98.05 vs 97.90 % val), so the gap is not due to the optimizer.
+- FF needs width: the gap to ReLU BP is 0.3 points at 500-500 and 1.4 points at 64-64 (θ not re-tuned for 64-64).
 
 ## Method
 
@@ -49,7 +55,7 @@ print((net.predict(d["test"][0]) == d["test"][1]).mean())
 - `history["test_acc"]` is accuracy on whatever is passed as `X_test` (the validation set here).
 - Train `ReLUNetwork` with `backprop_relu`; `backprop.backprop()` uses one activation derivative for all layers and raises an error for this network.
 - θ = 5 rather than θ = layer width: layer inputs have unit length, so G starts near 1. θ = 1 / 2 / 5 gave 95.9 / 96.5 / 97.4 % val at 10 epochs.
-- Adam rather than SGD: SGD with lr ≥ 1 killed all ReLUs; smaller lr trained slowly. SGD remains available (`optimizer="sgd"`).
+- Adam rather than SGD: on 10k images / 5 epochs, SGD + momentum reached 88.0 % val at best (lr 0.3) vs 92.2 % for Adam, and lr ≥ 1 killed all ReLUs. SGD remains available (`optimizer="sgd"`) for in-situ crossbar training.
 - Gradient checks: `check_layer_gradients` (FF), `check_gradients` (BP).
 - macOS: if `load_mnist()` fails with `CERTIFICATE_VERIFY_FAILED`, run `Install Certificates.command` from the Python folder in Applications.
 
