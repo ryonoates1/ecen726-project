@@ -1,10 +1,8 @@
 """Backprop baseline with ReLU hidden layers, for a fair comparison with Forward-Forward.
 
-The group's NeuralNetwork / backprop / CrossbarNetwork use one activation for every
-layer, including the output. FF uses ReLU hidden layers, so the BP baseline should too;
-only the learning rule should differ between the two. Here the hidden layers are ReLU
-and the output layer stays sigmoid, so the same binary cross-entropy loss as
-`backprop.py` still applies. Nothing in the group's files is changed.
+NeuralNetwork / backprop / CrossbarNetwork use one activation for every layer. Here the
+hidden layers are ReLU (as in FF) and the output stays sigmoid, so the binary
+cross-entropy loss of `backprop.py` still applies; only the learning rule differs from FF.
 """
 
 import numpy as np
@@ -22,8 +20,18 @@ def relu_prime(z):
     return (z > 0).astype(z.dtype)
 
 
+def _use_backprop_relu(z):
+    raise TypeError("ReLUNetwork mixes ReLU hidden layers with a sigmoid output layer, which "
+                    "backprop.backprop() cannot handle (it uses one activation derivative for all "
+                    "layers). Train it with bp_relu.backprop_relu() instead.")
+
+
 class ReLUNetwork(NeuralNetwork):
     """Fully connected network with ReLU hidden layers and a sigmoid output layer.
+
+    Train it with `backprop_relu`, not `backprop.backprop()`, which uses one
+    activation derivative for every layer. `net.activation_prime` raises so that
+    mistake fails instead of training with a wrong gradient.
 
         layer_sizes: Number of neurons in each layer, input to output,
             e.g. [784, 64, 64, 10].
@@ -36,7 +44,7 @@ class ReLUNetwork(NeuralNetwork):
         # parent's check; the activations are replaced right below.
         super().__init__(layer_sizes, activation="sigmoid", seed=seed)
         self.activation_name = "relu"
-        self.activation, self.activation_prime = relu, relu_prime
+        self.activation, self.activation_prime = relu, _use_backprop_relu
 
         # He initialization: ReLU zeros about half its inputs, so scale the
         # weights by sqrt(2/n_in) instead of sqrt(1/n_in) to keep the variance
@@ -196,9 +204,8 @@ def backprop_relu(net, X, y, epochs, lr=0.1, batch_size=32, seed=0,
 class ReLUCrossbarNetwork(CrossbarNetwork):
     """A trained ReLUNetwork with each layer programmed onto a crossbar.
 
-    Programming (G+/G- pair, bias row, noise, clipping) is the group's
-    `Crossbar` unchanged; only the activations applied to the column outputs
-    differ: ReLU after hidden layers, sigmoid after the last.
+    Programming (G+/G- pair, bias row, noise, clipping) is `Crossbar` unchanged;
+    only the activations differ: ReLU after hidden layers, sigmoid after the last.
 
         net: Trained ReLUNetwork whose weights are transferred.
         sigma: Programming noise std in uS.

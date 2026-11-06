@@ -1,4 +1,4 @@
-"""Forward-Forward training (Hinton 2022) of a fully connected ReLU net, NumPy only.
+"""Forward-Forward training of a fully connected ReLU net.
 
 Each layer has its own local objective: make the goodness G = sum_j y_j^2 high for
 positive data (image + correct label) and low for negative data (image + wrong label).
@@ -68,13 +68,23 @@ def hard_wrong_labels(goodness, y, rng):
     Returns:
         Wrong labels, shape (N,).
     """
-    g = goodness - goodness.max(axis=1, keepdims=True)  # stable softmax
-    p = np.exp(g)
-    p[np.arange(len(y)), y] = 0.0                        # never pick the true label
+    rows = np.arange(len(y))
+    g = np.array(goodness, dtype=np.float64)  # copy; the caller's array is not modified
+    g[rows, y] = -np.inf                      # the true label gets probability exactly 0
+    # Softmax over the 9 wrong labels. Subtracting the largest *wrong* goodness
+    # (not the overall max) keeps at least one term at exp(0) = 1, so the sum can
+    # never underflow to 0 even when the true label wins by a huge margin.
+    p = np.exp(g - g.max(axis=1, keepdims=True))
     p /= p.sum(axis=1, keepdims=True)
     # Inverse-CDF sampling, one draw per row.
     u = rng.random((len(y), 1))
-    return np.minimum((p.cumsum(axis=1) < u).sum(axis=1), N_CLASSES - 1)
+    k = (p.cumsum(axis=1) < u).sum(axis=1)
+    # Floating-point guard (probability ~1e-16 per draw): u above the last
+    # cumulative value gives k = 10, and u == 0 with true label 0 gives k = y.
+    # Fall back to the most likely wrong label.
+    bad = (k >= N_CLASSES) | (k == y)
+    k[bad] = np.argmax(g[bad], axis=1)
+    return k
 
 
 # ---------------------------------------------------------------------------
@@ -212,6 +222,8 @@ class FFNetwork:
             self.theta = [float(theta)] * n_layers
         else:
             self.theta = [float(t) for t in theta]
+            if len(self.theta) != n_layers:
+                raise ValueError(f"theta has {len(self.theta)} values but the net has {n_layers} layers")
 
         # Same layout as NeuralNetwork: weights[l] is (n_out, n_in), biases[l]
         # is (n_out, 1). Every layer's input is a unit-length vector, so with
@@ -256,6 +268,8 @@ class FFNetwork:
         Returns:
             Array of shape (N, 10): column k is the summed goodness with label k.
         """
+        if skip_first and len(self.weights) < 2:
+            raise ValueError("skip_first needs at least 2 layers (otherwise no goodness is left)")
         N = len(X)
         out = np.zeros((N, N_CLASSES))
         first = 1 if skip_first else 0
