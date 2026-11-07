@@ -98,9 +98,9 @@ def relu(z):
 def normalize(a, eps=1e-8):
     """Scale every column of a to unit length (no mean subtraction).
 
-    The length of a layer's activity vector is its goodness, so only the
-    direction is passed on; otherwise the next layer could just read off the
-    previous layer's goodness and learn nothing new.
+    The squared length of a layer's activity vector is its goodness
+    (G = ||y||^2), so only the direction is passed on; otherwise the next layer
+    could just read off the previous layer's goodness and learn nothing new.
 
     Args:
         a: Activities, shape (n, B), examples as columns.

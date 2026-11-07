@@ -11,7 +11,7 @@
 
 Existing files in `src/` and `main.ipynb` are unchanged.
 
-## Results (test set evaluated once)
+## Results
 
 | Model | Hidden | Params | Optimizer | Val | Test |
 |---|---|---|---|---|---|
@@ -22,11 +22,12 @@ Existing files in `src/` and `main.ipynb` are unchanged.
 | BP, ReLU | 500-500 | 648,010 | Adam 0.003, bs 100 | 98.05 % | — |
 | FF | 500-500 | 643,000 | Adam 0.003, bs 100 | 97.90 % | 97.91 % |
 
-Epochs: 60, except the two 64-64 BP runs (50). FF: θ = 5, hard negatives. Hyperparameters chosen on the validation set.
+Epochs: 60, except the two 64-64 BP runs (50). FF: θ = 5, hard negatives. Single seed per run.
 
+- Selection: FF hyperparameters (θ, optimizer, learning rate, negatives) were chosen on the validation set; test accuracy was not used for any choice. BP settings (SGD 0.1, batch 32) come from `main.ipynb` and were not tuned; that notebook also reports test accuracy after every epoch.
 - BP has 5,010 more parameters: its 10-unit output layer. FF reads the class through the label pixels inside the 784 inputs; hidden layers are identical.
-- With the same optimizer (Adam 0.003, bs 100), BP still leads FF (98.05 vs 97.90 % val), so the gap is not due to the optimizer.
-- FF needs width: the gap to ReLU BP is 0.3 points at 500-500 and 1.4 points at 64-64 (θ not re-tuned for 64-64).
+- In the matched-optimizer run (Adam 0.003, batch 100), BP still led FF: 98.05 vs 97.90 % val.
+- From 64-64 to 500-500, FF improved by 1.8 points (96.09 → 97.90 % val) and ReLU BP by 0.7 points (97.49 → 98.22 %), so the gap shrank from 1.4 to 0.3 points in these runs (θ was not re-tuned for 64-64).
 
 ## Forward-Forward algorithm (`src/ff.py`)
 
@@ -66,7 +67,7 @@ $$\delta_i = \frac{\partial L}{\partial G_i}\, 2\,y_i,\qquad
 In matrix form (examples as columns): $\nabla W = \Delta^{\text{pos}} X_{\text{pos}}^T + \Delta^{\text{neg}} X_{\text{neg}}^T$.
 The update uses only the layer's own input $x$ and output $y$: a local outer product, no $W^T$, no backward pass.
 
-**6. Passing to the next layer.** Only the direction of the activity is passed on (its length is this layer's goodness):
+**6. Passing to the next layer.** Only the direction of the activity is passed on (its squared length $\lVert y \rVert^2 = G$ is this layer's goodness):
 
 $$x_{\text{next}} = \frac{y}{\lVert y \rVert + \varepsilon}$$
 
@@ -123,10 +124,11 @@ The $10^{-6}$ floor: in float64 the finite difference resolves gradients only to
 
 $$z^{(l)} = W^{(l)} a^{(l-1)} + b^{(l)},\qquad a^{(l)} = \max(z^{(l)}, 0)\ \ (l < L),\qquad a^{(L)} = \sigma(z^{(L)})$$
 
-**Loss**: binary cross-entropy over the 10 outputs, one-hot target $t$:
-$\ L = -\frac{1}{B}\sum_i \sum_k \big[t_k \log a_k + (1-t_k)\log(1-a_k)\big]$.
+**Loss**: binary cross-entropy over the 10 outputs, one-hot target $t$, averaged over the batch:
+$\ L = \frac{1}{B}\sum_i \ell_i,\quad \ell_i = -\sum_k \big[t_{ki} \log a_{ki} + (1-t_{ki})\log(1-a_{ki})\big]$.
 
-**Backward** (`gradients`), with $\delta^{(l)} = \partial L / \partial z^{(l)}$:
+**Backward** (`gradients`), with $\delta^{(l)}_i = \partial \ell_i / \partial z^{(l)}_i$, the derivative of the
+**per-example** loss (the batch-mean factor $1/B$ is applied in $\nabla W$ and $\nabla b$):
 
 $$\delta^{(L)} = a^{(L)} - t,\qquad
 \delta^{(l-1)} = \big(W^{(l)}\big)^T \delta^{(l)} \odot \mathbf{1}\big[z^{(l-1)} > 0\big],\qquad
@@ -154,7 +156,21 @@ $G_\text{min} = 0.1\ \mu S$, $G_\text{max} = 150\ \mu S$, $\sigma = 0.1\ \mu S$,
 crossbar output equals $Wa + b$ (checked to $2\times10^{-15}$). In FF every layer input has unit length, so every
 row voltage is at most $V_\text{read}$.
 
-## Usage
+## Setup and run
+
+```bash
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt        # Windows: .venv\Scripts\pip install -r requirements.txt
+```
+
+Open `ff.ipynb` from the repository root with the `.venv` interpreter and run all cells (`RETRAIN = False`).
+
+- Trained weights and metrics are stored in `../results/`, the folder next to the repository. They are **not** in
+  the repository, so a fresh clone has none: the first run trains every model (~15 min) and saves them there;
+  later runs load them (~1 min). Training is seeded, so the numbers above are reproduced.
+- MNIST is downloaded to `data/` on first use (ignored by git).
+
+## Usage in code
 
 ```python
 from src.mnist import load_mnist
@@ -165,8 +181,6 @@ net, hist = train_ff(FFNetwork([784, 500, 500], theta=5.0), *d["train"], epochs=
                      negatives="hard", X_test=d["val"][0], y_test=d["val"][1])
 print((net.predict(d["test"][0]) == d["test"][1]).mean())
 ```
-
-`ff.ipynb`: with `RETRAIN = False`, saved models in `../results/` are loaded and missing ones are trained (~15 min) and saved.
 
 ## Notes
 

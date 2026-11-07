@@ -102,7 +102,8 @@ def gradients(net, X, y):
     loss = _cross_entropy(a_out, t)
 
     # Output layer: with a sigmoid output and cross-entropy loss the sigmoid
-    # derivative cancels, so dLoss/dz = a - t.
+    # derivative cancels, so the per-example derivative is d(loss_i)/dz = a - t.
+    # The 1/B of the batch mean is applied in grads_W and grads_b below.
     delta = a_out - t
     L = len(net.weights)
     grads_W, grads_b = [None] * L, [None] * L
