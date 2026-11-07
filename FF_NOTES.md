@@ -32,11 +32,11 @@ Epochs: 60, except the two 64-64 BP runs (50). FF: θ = 5, hard negatives. Singl
 ## Forward-Forward algorithm (`src/ff.py`)
 
 Notation: layer $l$ has weights $W$ of shape $(n_\text{out}, n_\text{in})$, bias $b$ of shape $(n_\text{out}, 1)$,
-threshold $\theta$; a batch has $B$ examples; $\sigma(u) = 1/(1+e^{-u})$, $\operatorname{softplus}(u) = \log(1+e^{u})$.
+threshold $\theta$; a batch has $B$ examples; $\sigma(u) = 1/(1+e^{-u})$, $\mathrm{softplus}(u) = \log(1+e^{u})$.
 
 **1. Label embedding** (`embed_label`). Pixels 0–9 of the flattened image are always 0 in MNIST and are overwritten:
 
-$$\tilde{x} = [\,e_k,\ \text{pixels } 10..783\,],\qquad e_k = \text{one-hot}(k),\qquad \text{neutral label: all 10 entries } = 0.1$$
+$$\tilde{x} = [e_k,\ \text{pixels } 10..783],\qquad e_k = \text{one-hot}(k),\qquad \text{neutral label: all 10 entries } = 0.1$$
 
 Positive example: $k = y$ (true label). Negative example: same image, $k \ne y$.
 
@@ -52,15 +52,15 @@ $G$ is the goodness; $p$ is the layer's probability that the input is positive.
 
 **4. Local loss** (one per layer, batch mean):
 
-$$L = \frac{1}{B}\sum_{i=1}^{B}\Big[\operatorname{softplus}\big(-(G^{\text{pos}}_i - \theta)\big) + \operatorname{softplus}\big(G^{\text{neg}}_i - \theta\big)\Big]$$
+$$L = \frac{1}{B}\sum_{i=1}^{B}\Big[\mathrm{softplus}\big(-(G^{\text{pos}}_i - \theta)\big) + \mathrm{softplus}\big(G^{\text{neg}}_i - \theta\big)\Big]$$
 
-**5. Hand-derived gradient.** Using $\frac{d}{du}\operatorname{softplus}(u) = \sigma(u)$:
+**5. Hand-derived gradient.** Using $\frac{d}{du}\mathrm{softplus}(u) = \sigma(u)$:
 
 $$\frac{\partial L}{\partial G^{\text{pos}}_i} = -\frac{1 - p^{\text{pos}}_i}{B},\qquad
 \frac{\partial L}{\partial G^{\text{neg}}_i} = \frac{p^{\text{neg}}_i}{B},\qquad
-\frac{\partial G_i}{\partial z_{ji}} = 2\,y_{ji}\ \ (\text{zero where } z_{ji} \le 0)$$
+\frac{\partial G_i}{\partial z_{ji}} = 2 y_{ji}\ \ (\text{zero where } z_{ji} \le 0)$$
 
-$$\delta_i = \frac{\partial L}{\partial G_i}\, 2\,y_i,\qquad
+$$\delta_i = \frac{\partial L}{\partial G_i}  2 y_i,\qquad
 \nabla W = \sum_i \big(\delta^{\text{pos}}_i (x^{\text{pos}}_i)^T + \delta^{\text{neg}}_i (x^{\text{neg}}_i)^T\big),\qquad
 \nabla b = \sum_i \big(\delta^{\text{pos}}_i + \delta^{\text{neg}}_i\big)$$
 
@@ -72,8 +72,8 @@ The update uses only the layer's own input $x$ and output $y$: a local outer pro
 $$x_{\text{next}} = \frac{y}{\lVert y \rVert + \varepsilon}$$
 
 **7. Initialization** (`FFNetwork.__init__`). With $\lVert x \rVert = 1$ and $W_{jk} \sim \mathcal{N}(0, s^2)$:
-$\operatorname{Var}(z_j) = s^2$, $\mathbb{E}[\max(z_j,0)^2] = s^2/2$, so choosing $s^2 = 2/n_\text{out}$ gives
-$\mathbb{E}[G] = n_\text{out}\, s^2/2 = 1$ for any width. Biases start at 0.
+$\mathrm{Var}(z_j) = s^2$, $\mathbb{E}[\max(z_j,0)^2] = s^2/2$, so choosing $s^2 = 2/n_\text{out}$ gives
+$\mathbb{E}[G] = n_\text{out}  s^2/2 = 1$ for any width. Biases start at 0.
 
 **8. Negative labels.**
 - Random (`random_wrong_labels`): $k = (y + r) \bmod 10$ with $r$ uniform in $\lbrace 1,\dots,9 \rbrace$.
@@ -87,7 +87,7 @@ $$P(k) = \frac{e^{G_k}}{\sum_{j \ne y} e^{G_j}}\ \ \text{for } k \ne y,\qquad P(
 - Adam ($\eta = 0.003$, $\beta_1 = 0.9$, $\beta_2 = 0.999$, $\epsilon = 10^{-8}$):
 
 $$m \leftarrow \beta_1 m + (1-\beta_1) g,\quad v \leftarrow \beta_2 v + (1-\beta_2) g^2,\quad
-w \leftarrow w - \eta\,\frac{m/(1-\beta_1^t)}{\sqrt{v/(1-\beta_2^t)} + \epsilon}$$
+w \leftarrow w - \eta \frac{m/(1-\beta_1^t)}{\sqrt{v/(1-\beta_2^t)} + \epsilon}$$
 
 - SGD with momentum $\mu$: $\ v \leftarrow \mu v - \eta g,\ \ w \leftarrow w + v$.
 
@@ -132,25 +132,25 @@ $\ L = \frac{1}{B}\sum_i \ell_i,\quad \ell_i = -\sum_k \big[t_{ki} \log a_{ki} +
 
 $$\delta^{(L)} = a^{(L)} - t,\qquad
 \delta^{(l-1)} = \big(W^{(l)}\big)^T \delta^{(l)} \odot \mathbf{1}\big[z^{(l-1)} > 0\big],\qquad
-\nabla W^{(l)} = \tfrac{1}{B}\,\delta^{(l)} \big(a^{(l-1)}\big)^T,\qquad
+\nabla W^{(l)} = \tfrac{1}{B} \delta^{(l)} \big(a^{(l-1)}\big)^T,\qquad
 \nabla b^{(l)} = \tfrac{1}{B}\textstyle\sum_i \delta^{(l)}_i$$
 
 $\delta^{(L)} = a - t$ because the sigmoid derivative $a(1-a)$ cancels with the cross-entropy derivative. The
 $W^T$ step is the weight transport that FF avoids.
 
 **Update** (`backprop_relu`): $W \leftarrow W - \eta \nabla W$, $\eta = 0.1$, batch 32.
-**Initialization**: He, $W^{(l)}_{jk} \sim \mathcal{N}(0, 2/n_\text{in})$, biases 0.
+**Initialization**: He, $`W^{(l)}_{jk} \sim \mathcal{N}(0, 2/n_\text{in})`$, biases 0.
 
 ## Crossbar mapping (`src/crossbar.py`, used by `ReLUCrossbarNetwork`)
 
 For each layer, with the bias as an extra row driven at $V_\text{read}$:
 
-$$W_\text{aug} = \begin{bmatrix} W^T \\ b^T \end{bmatrix},\qquad g = \frac{G_\text{max} - G_\text{min}}{\max |W_\text{aug}|},\qquad
+$$W_\text{aug} = \begin{bmatrix} W^T \cr b^T \end{bmatrix},\qquad g = \frac{G_\text{max} - G_\text{min}}{\max |W_\text{aug}|},\qquad
 G^{\pm} = G_\text{min} + g \max(\pm W_\text{aug}, 0)$$
 
-$$G \leftarrow \operatorname{clip}\big(G + \mathcal{N}(0, \sigma^2),\ G_\text{min},\ G_\text{max}\big),\qquad
+$$G \leftarrow \mathrm{clip}\big(G + \mathcal{N}(0, \sigma^2),\ G_\text{min},\ G_\text{max}\big),\qquad
 I_j = \sum_i G_{ij} V_i,\qquad
-z = \frac{I^{+} - I^{-}}{V_\text{read}\, g},\quad V = V_\text{read}\,[a,\ 1]$$
+z = \frac{I^{+} - I^{-}}{V_\text{read}  g},\quad V = V_\text{read} [a,\ 1]$$
 
 $G_\text{min} = 0.1\ \mu S$, $G_\text{max} = 150\ \mu S$, $\sigma = 0.1\ \mu S$, $V_\text{read} = 0.2$ V. With $\sigma = 0$ the
 crossbar output equals $Wa + b$ (checked to $2\times10^{-15}$). In FF every layer input has unit length, so every
